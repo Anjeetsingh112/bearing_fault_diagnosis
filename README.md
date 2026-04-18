@@ -4,9 +4,9 @@ A production-grade, explainable AI system for rolling bearing fault diagnosis us
 
 ---
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://bearing-diagnosis.streamlit.app)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://bearing-diagnosis-2022ugme112.streamlit.app)
 
-**Live Demo:** https://bearing-diagnosis.streamlit.app
+**Live Demo:** https://bearing-diagnosis-2022ugme112.streamlit.app
 
 
 ## Table of Contents
