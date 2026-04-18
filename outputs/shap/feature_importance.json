@@ -1,0 +1,66 @@
+[
+  {
+    "feature": "Wavelet_cD3",
+    "mean_abs_shap": 0.775929
+  },
+  {
+    "feature": "FreqCentroid",
+    "mean_abs_shap": 0.630138
+  },
+  {
+    "feature": "Wavelet_cA3",
+    "mean_abs_shap": 0.486521
+  },
+  {
+    "feature": "Shape",
+    "mean_abs_shap": 0.482448
+  },
+  {
+    "feature": "PeakFreq",
+    "mean_abs_shap": 0.358601
+  },
+  {
+    "feature": "BandEnergy",
+    "mean_abs_shap": 0.321753
+  },
+  {
+    "feature": "Wavelet_cD2",
+    "mean_abs_shap": 0.305572
+  },
+  {
+    "feature": "RMS",
+    "mean_abs_shap": 0.265595
+  },
+  {
+    "feature": "Kurtosis",
+    "mean_abs_shap": 0.260022
+  },
+  {
+    "feature": "SpectralEntropy",
+    "mean_abs_shap": 0.146927
+  },
+  {
+    "feature": "Clearance",
+    "mean_abs_shap": 0.146251
+  },
+  {
+    "feature": "Wavelet_cD1",
+    "mean_abs_shap": 0.132719
+  },
+  {
+    "feature": "Peak2Peak",
+    "mean_abs_shap": 0.120632
+  },
+  {
+    "feature": "Skewness",
+    "mean_abs_shap": 0.092257
+  },
+  {
+    "feature": "Impulse",
+    "mean_abs_shap": 0.048407
+  },
+  {
+    "feature": "Crest",
+    "mean_abs_shap": 0.029071
+  }
+]

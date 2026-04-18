@@ -1,0 +1,35 @@
+# Dataset — too large for git (users upload their own .mat files)
+CWRU-dataset/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Keep trained models and SHAP outputs (for deployment)
+!models/
+!outputs/shap/
