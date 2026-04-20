@@ -67,21 +67,8 @@ ID_LABEL_DE_12K = {
     3005: "Ball_028", 3006: "Ball_028", 3007: "Ball_028", 3008: "Ball_028",
 }
 
-# 48k Drive End files (DE_time signal)
-ID_LABEL_DE_48K = {
-    97: "Normal", 98: "Normal", 99: "Normal", 100: "Normal",
-    109: "IR_007", 110: "IR_007", 111: "IR_007", 112: "IR_007",
-    174: "IR_014", 175: "IR_014", 176: "IR_014", 177: "IR_014",
-    213: "IR_021", 214: "IR_021", 215: "IR_021", 217: "IR_021",
-    135: "OR_007", 136: "OR_007", 137: "OR_007", 138: "OR_007",
-    201: "OR_014", 202: "OR_014", 203: "OR_014", 204: "OR_014",
-    238: "OR_021", 239: "OR_021", 240: "OR_021", 241: "OR_021",
-    122: "Ball_007", 123: "Ball_007", 124: "Ball_007", 125: "Ball_007",
-    189: "Ball_014", 190: "Ball_014", 191: "Ball_014", 192: "Ball_014",
-    226: "Ball_021", 227: "Ball_021", 228: "Ball_021", 229: "Ball_021",
-}
-
 # 12k Fan End files (FE_time signal)
+# Note: Fan End data has 9 fault classes (no Ball_028 / IR_028 / OR_028 in Fan End folder)
 ID_LABEL_FE_12K = {
     97: "Normal", 98: "Normal", 99: "Normal", 100: "Normal",
     278: "IR_007", 279: "IR_007", 280: "IR_007", 281: "IR_007",
@@ -95,20 +82,6 @@ ID_LABEL_FE_12K = {
     290: "Ball_021", 291: "Ball_021", 292: "Ball_021", 293: "Ball_021",
 }
 
-# 48k Fan End — reuse 48k_Drive_End .mat files but read FE_time key
-ID_LABEL_FE_48K = {
-    97: "Normal", 98: "Normal", 99: "Normal", 100: "Normal",
-    109: "IR_007", 110: "IR_007", 111: "IR_007", 112: "IR_007",
-    174: "IR_014", 175: "IR_014", 176: "IR_014", 177: "IR_014",
-    213: "IR_021", 214: "IR_021", 215: "IR_021", 217: "IR_021",
-    135: "OR_007", 136: "OR_007", 137: "OR_007", 138: "OR_007",
-    201: "OR_014", 202: "OR_014", 203: "OR_014", 204: "OR_014",
-    238: "OR_021", 239: "OR_021", 240: "OR_021", 241: "OR_021",
-    122: "Ball_007", 123: "Ball_007", 124: "Ball_007", 125: "Ball_007",
-    189: "Ball_014", 190: "Ball_014", 191: "Ball_014", 192: "Ball_014",
-    226: "Ball_021", 227: "Ball_021", 228: "Ball_021", 229: "Ball_021",
-}
-
 # ──────────────────────────────────────────────────────────────────
 # Config: which folders to scan, which signal key, which ID map
 # ──────────────────────────────────────────────────────────────────
@@ -120,23 +93,11 @@ DATASET_CONFIG = {
         "fs": 12000.0,
         "id_map": ID_LABEL_DE_12K,
     },
-    "DE_48k": {
-        "folders": ["48k_Drive_End_Bearing_Fault_Data", "Normal"],
-        "signal_key": "DE_time",
-        "fs": 48000.0,
-        "id_map": ID_LABEL_DE_48K,
-    },
     "FE_12k": {
         "folders": ["12k_Fan_End_Bearing_Fault_Data", "Normal"],
         "signal_key": "FE_time",
         "fs": 12000.0,
         "id_map": ID_LABEL_FE_12K,
-    },
-    "FE_48k": {
-        "folders": ["48k_Drive_End_Bearing_Fault_Data", "Normal"],
-        "signal_key": "FE_time",
-        "fs": 48000.0,
-        "id_map": ID_LABEL_FE_48K,
     },
 }
 
@@ -265,26 +226,39 @@ def balance_classes(df, label_col="label"):
 # Train model
 # ──────────────────────────────────────────────────────────────────
 
+def _manual_group_split(df, test_ratio=0.5):
+    """Per-class file-level split guaranteeing every class appears in both train and test.
+
+    For each class, sort its files deterministically, then split files into train/test.
+    Ensures every class has >=1 file in each set (required for XGBoost training).
+    """
+    rng = np.random.RandomState(RANDOM_STATE)
+    train_mask = np.zeros(len(df), dtype=bool)
+    for label, grp in df.groupby("label"):
+        files = sorted(grp["filename"].unique())
+        n = len(files)
+        # Shuffle deterministically
+        idx = rng.permutation(n)
+        files = [files[i] for i in idx]
+        n_train = max(1, n - max(1, int(n * test_ratio)))  # at least 1 train, 1 test
+        train_files = set(files[:n_train])
+        train_mask |= (df["label"].values == label) & df["filename"].isin(train_files).values
+    return train_mask
+
+
 def train_model(df, config_name, models_dir):
     X = df[FEATURE_COLUMNS].values
     y = df["label"].values
-    groups = df["filename"].values
 
     class_names = sorted(np.unique(y))
 
-    # 50/50 grouped stratified split
-    sgkf = StratifiedGroupKFold(n_splits=2, shuffle=True, random_state=RANDOM_STATE)
-    train_idx, test_idx = next(sgkf.split(X, y, groups=groups))
-    X_train, X_test = X[train_idx], X[test_idx]
-    y_train, y_test = y[train_idx], y[test_idx]
+    # Manual per-class file split — guarantees every class in both train and test
+    train_mask = _manual_group_split(df, test_ratio=0.5)
+    X_train, X_test = X[train_mask], X[~train_mask]
+    y_train, y_test = y[train_mask], y[~train_mask]
 
-    # Ensure label encoding uses only classes present in training set
-    train_classes = sorted(np.unique(y_train))
-    if len(train_classes) < len(class_names):
-        print(f"  Note: {len(class_names)-len(train_classes)} classes only in test, filtering...")
-        mask = np.isin(y_test, train_classes)
-        X_test, y_test = X_test[mask], y_test[mask]
-        class_names = train_classes
+    print(f"  Split: {train_mask.sum()} train / {(~train_mask).sum()} test samples")
+    print(f"  Classes in train: {len(np.unique(y_train))}, test: {len(np.unique(y_test))}")
 
     label2int = {lbl: i for i, lbl in enumerate(class_names)}
     int2label = {i: lbl for lbl, i in label2int.items()}
@@ -528,7 +502,7 @@ def main():
     de_12k_df = None
     de_12k_records = None
 
-    for config_name in ["DE_12k", "DE_48k", "FE_12k", "FE_48k"]:
+    for config_name in ["DE_12k", "FE_12k"]:
         print(f"\n{'='*60}")
         print(f"Training: {config_name}")
         print(f"{'='*60}")

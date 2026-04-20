@@ -236,10 +236,13 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload vibration signal", type=["mat", "csv"])
 
     sensor_type = st.selectbox("Sensor Location", ["Drive End (DE)", "Fan End (FE)"])
-    sampling_rate = st.selectbox("Sampling Rate", ["12k", "48k"])
+
+    # Fixed sampling rate — only 12k models are supported in this system
+    sampling_rate = "12k"
+    st.caption("Sampling Rate: 12 kHz (only 12k data supported)")
 
     config_name = get_config_name(sensor_type, sampling_rate)
-    fs = 48000.0 if sampling_rate == "48k" else 12000.0
+    fs = 12000.0
     sensor_key = "DE_time" if "DE" in config_name else "FE_time"
     is_primary = (config_name == "DE_12k")
 
@@ -270,25 +273,22 @@ with st.sidebar:
 **This system is trained only on the CWRU dataset.**
 
 Supported configurations:
-- **12k Drive End** - Best accuracy + SHAP
-- **48k Drive End** - Prediction only
-- **12k Fan End** - Prediction only
-- **48k Fan End** - Prediction only
+- **12k Drive End (DE_12k)** - 12 classes, best accuracy (primary model)
+- **12k Fan End (FE_12k)** - 10 classes (Fan End has no 0.028 fault size)
 
-Best explainability is **ONLY** available for:
-**12k Drive End (DE_12k)** model.
+Both models use 12 kHz sampling rate.
 
-Other configurations provide prediction only.
+SHAP explainability is **available for both models**.
+Pre-generated report plots are only stored for DE_12k.
         """)
 
     with st.expander("How to Use", expanded=False):
         st.markdown("""
 1. **Upload** a `.mat` file from the CWRU dataset or a single-column `.csv`
-2. **Select** the correct sensor type and sampling rate that matches your file
-3. View the diagnosis result, signal plots, and probability distribution
-4. For SHAP explainability, use **12k Drive End** data
+2. **Select** the correct sensor type (Drive End or Fan End)
+3. View the diagnosis result, signal plots, SHAP explanation, and probability
 
-**For best results:** Use files from `12k_Drive_End_Bearing_Fault_Data/`
+**For best results:** Use files from `12k_Drive_End_Bearing_Fault_Data/` (DE_12k has 12 classes).
         """)
 
 
@@ -315,7 +315,7 @@ if uploaded_file is None:
 
     if st.session_state.history:
         st.markdown("### Recent Predictions")
-        st.dataframe(pd.DataFrame(st.session_state.history[::-1]), use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.history[::-1]), width="stretch")
     st.stop()
 
 # ─────────────────────────────────────────────────
@@ -453,15 +453,15 @@ tab_idx = 0
 # ── Signal View ──
 with tabs[tab_idx]:
     n_show = min(20000, len(signal_raw))
-    st.plotly_chart(_signal_fig(signal_raw[:n_show], fs, "Raw Vibration Signal"), use_container_width=True)
-    st.plotly_chart(_signal_fig(filtered[:n_show], fs, f"Filtered Signal (Bandpass 20-5000 Hz)"), use_container_width=True)
+    st.plotly_chart(_signal_fig(signal_raw[:n_show], fs, "Raw Vibration Signal"), width="stretch")
+    st.plotly_chart(_signal_fig(filtered[:n_show], fs, f"Filtered Signal (Bandpass 20-5000 Hz)"), width="stretch")
 tab_idx += 1
 
 # ── FFT ──
 with tabs[tab_idx]:
     freqs, mags = compute_fft(windows[mid], fs=fs)
     peak_f = float(freqs[np.argmax(mags)])
-    st.plotly_chart(_fft_fig(freqs, mags, peak_f), use_container_width=True)
+    st.plotly_chart(_fft_fig(freqs, mags, peak_f), width="stretch")
     fc1, fc2, fc3 = st.columns(3)
     with fc1:
         st.metric("Peak Frequency", f"{peak_f:.0f} Hz")
@@ -473,7 +473,7 @@ tab_idx += 1
 
 # ── Probability ──
 with tabs[tab_idx]:
-    st.plotly_chart(_proba_fig(proba, class_names, pred_label), use_container_width=True)
+    st.plotly_chart(_proba_fig(proba, class_names, pred_label), width="stretch")
     st.markdown("**Top 3 Predicted Classes:**")
     top3 = np.argsort(proba)[::-1][:3]
     pc1, pc2, pc3 = st.columns(3)
@@ -496,11 +496,11 @@ with tabs[tab_idx]:
 
         col_bar, col_wf = st.columns(2)
         with col_bar:
-            st.plotly_chart(_shap_bar_fig(shap_vals, feat_names), use_container_width=True)
+            st.plotly_chart(_shap_bar_fig(shap_vals, feat_names), width="stretch")
         with col_wf:
             feat_vals = np.array([features[f] for f in feat_names])
             st.plotly_chart(_shap_waterfall_fig(shap_vals, base_val, feat_names, feat_vals),
-                            use_container_width=True)
+                            width="stretch")
     else:
         st.warning("SHAP computation failed for this sample.")
 tab_idx += 1
@@ -528,7 +528,7 @@ with tabs[tab_idx]:
 
     st.dataframe(
         feat_df.style.apply(_highlight, axis=1).format({"Value": "{:.4f}"}),
-        use_container_width=True, height=620,
+        width="stretch", height=620,
     )
 
 tab_idx += 1
@@ -537,7 +537,7 @@ tab_idx += 1
 with tabs[tab_idx]:
     if st.session_state.history:
         hist_df = pd.DataFrame(st.session_state.history[::-1])
-        st.dataframe(hist_df, use_container_width=True)
+        st.dataframe(hist_df, width="stretch")
         if len(st.session_state.history) > 1:
             confs = [float(h["confidence"].strip("%")) / 100 for h in st.session_state.history]
             fig_trend = go.Figure(go.Scatter(y=confs, mode="lines+markers",
@@ -546,6 +546,6 @@ with tabs[tab_idx]:
             fig_trend.update_layout(template=PLOTLY_DARK, title="Confidence Trend",
                                     yaxis_title="Confidence", xaxis_title="Prediction #",
                                     height=300)
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, width="stretch")
     else:
         st.info("No predictions yet.")
