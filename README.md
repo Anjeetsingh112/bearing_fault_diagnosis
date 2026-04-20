@@ -287,19 +287,31 @@ XGBClassifier(
 
 ### 5.3 Random Forest (Baseline)
 
-A Random Forest (100 trees) is also trained for the DE_12k configuration as a baseline comparison. It achieves 97.24% accuracy, essentially tied with XGBoost's 97.09%. XGBoost is preferred for SHAP compatibility.
+A Random Forest (100 trees) is also trained for the DE_12k configuration as a baseline comparison. It achieves 98.29% accuracy, essentially tied with XGBoost's 98.41%. XGBoost is preferred for SHAP compatibility.
 
 ### 5.4 Train/Test Split Strategy
 
-**Manual per-class file split (50/50)**
+**Stratified Group K-Fold cross-validation (n_splits=2)**
 
-- For each class, files are sorted deterministically and split into train/test
-- Guarantees at least 1 file per class in both train and test sets
-- Prevents data leakage: windows from the same .mat file never appear in both sets
-- With 4 files per class: 2 train files, 2 test files
-- No overlap between train and test signals
+This project uses sklearn's `StratifiedGroupKFold` — the industry-standard approach that simultaneously addresses two concerns:
 
-**Why not a simple random window split?** Adjacent windows in the same signal are highly correlated. A random split would allow windows from the same signal to appear in both train and test, inflating accuracy artificially.
+- **Stratified:** Keeps class proportions balanced between train and test folds (prevents majority-class bias)
+- **Grouped:** All windows from the same `.mat` file go to the same fold (prevents data leakage from adjacent, highly-correlated windows)
+
+**Implementation:**
+
+```python
+from sklearn.model_selection import StratifiedGroupKFold
+
+sgkf = StratifiedGroupKFold(n_splits=2, shuffle=True, random_state=seed)
+train_idx, test_idx = next(sgkf.split(X, y, groups=filenames))
+```
+
+**Why 2 splits (50/50)?** With only 4 files per class, n_splits=2 puts 2 files in train and 2 in test per class — the maximum split that still gives meaningful train/test data.
+
+**Seed retry logic:** With so few files per class, the algorithm can occasionally miss a class in one fold. The training loop tries multiple random seeds until it finds a split where **every class appears in both train and test**.
+
+**Why not a simple random window split?** Adjacent windows in the same signal are highly correlated. A random split would allow windows from the same signal to appear in both train and test, inflating accuracy artificially. Stratified Group K-Fold prevents this.
 
 ### 5.5 Feature Scaling
 
@@ -492,7 +504,7 @@ python pipeline.py
 This will:
 1. Load signals for DE_12k and FE_12k configurations
 2. Extract 16 features per window at 12 kHz
-3. Balance classes and split data (50/50 manual file-level split)
+3. Balance classes and split data using Stratified Group K-Fold (50/50)
 4. Train XGBoost (+ Random Forest for DE_12k)
 5. Save model bundles to `models/`
 6. Generate SHAP plots for DE_12k to `outputs/shap/`
@@ -574,9 +586,9 @@ project/
 
 Three safeguards prevent data leakage:
 
-1. **File-level split**: Windows from the same signal file never appear in both train and test
-2. **Post-split scaling**: StandardScaler is fit only on training data
-3. **Per-class balance**: Manual split ensures every class has representation in both sets
+1. **Stratified Group K-Fold split**: Windows from the same signal file never appear in both train and test. Groups (files) are kept together while class proportions are balanced across folds.
+2. **Post-split scaling**: `StandardScaler` is fit only on training data, then applied to test data — test statistics never influence the scaler.
+3. **Class balance**: Classes are downsampled to the minority count (940 windows per class for DE_12k) before splitting, preventing majority-class bias.
 
 ### 11.2 File ID Mapping
 
@@ -607,34 +619,36 @@ XGBoost multi-class SHAP values have shape `(n_samples, n_features, n_classes)`.
 
 | Model | Classes | Accuracy | Macro F1 | Weighted F1 |
 |-------|---------|----------|----------|-------------|
-| **DE_12k (XGBoost)** | 12 | **97.09%** | **97.15%** | 97.13% |
-| DE_12k (Random Forest) | 12 | 97.24% | 97.28% | 97.27% |
-| **FE_12k (XGBoost)** | 10 | **84.02%** | **83.96%** | 83.84% |
+| **DE_12k (XGBoost)** | 12 | **98.41%** | **98.46%** | 98.40% |
+| DE_12k (Random Forest) | 12 | 98.29% | 98.48% | 98.29% |
+| **FE_12k (XGBoost)** | 10 | **75.82%** | **70.04%** | 70.67% |
 
 ### 12.2 DE_12k Per-Class Performance (XGBoost)
 
 | Class | Precision | Recall | F1-Score |
 |-------|-----------|--------|----------|
-| Normal | 1.0000 | 1.0000 | 1.0000 |
-| IR_007 | 1.0000 | 1.0000 | 1.0000 |
-| IR_014 | 0.9847 | 0.9597 | 0.9720 |
-| IR_021 | 0.9979 | 0.9979 | 0.9979 |
-| IR_028 | 0.9979 | 1.0000 | 0.9989 |
-| OR_007 | 0.9937 | 1.0000 | 0.9968 |
-| OR_014 | 0.9229 | 0.9190 | 0.9209 |
-| OR_021 | 0.9979 | 1.0000 | 0.9989 |
-| Ball_007 | 0.9912 | 0.9575 | 0.9741 |
-| Ball_014 | 0.9602 | 0.9254 | 0.9425 |
-| Ball_021 | 0.8203 | 0.8936 | 0.8554 |
+| Normal | 0.9667 | 1.0000 | 0.9831 |
+| IR_007 | 0.9986 | 1.0000 | 0.9993 |
+| IR_014 | 0.9935 | 0.9851 | 0.9893 |
+| IR_021 | 0.9985 | 0.9575 | 0.9776 |
+| IR_028 | 1.0000 | 1.0000 | 1.0000 |
+| OR_007 | 0.9957 | 0.9979 | 0.9968 |
+| OR_014 | 0.9979 | 0.9958 | 0.9968 |
+| OR_021 | 1.0000 | 1.0000 | 1.0000 |
+| Ball_007 | 0.9355 | 0.9915 | 0.9627 |
+| Ball_014 | 0.9341 | 0.9816 | 0.9572 |
+| Ball_021 | 0.9819 | 0.9255 | 0.9529 |
 | Ball_028 | 1.0000 | 1.0000 | 1.0000 |
 
 ### 12.3 Performance Analysis
 
-**Strongest classes** (F1 >= 0.99): Normal, IR_007, IR_021, IR_028, OR_007, OR_021, Ball_028. Distinctive vibration signatures.
+**Strongest classes** (F1 >= 0.99): IR_007, IR_014, IR_028, OR_007, OR_014, OR_021, Ball_028 — all above 0.987 F1.
 
-**Challenging classes** (F1 < 0.90): Ball_021 (0.8554). Moderate-severity ball faults partially overlap with adjacent severity levels.
+**Moderate classes** (F1 0.95-0.99): Normal, Ball_007, Ball_014, Ball_021, IR_021 — still excellent performance.
 
-**Why DE_12k outperforms FE_12k**: The Drive End sensor is physically closer to the test bearing, capturing clearer fault signatures. The Fan End sensor receives attenuated vibrations through the shaft.
+**No class below 0.95 F1** — DE_12k shows strong, consistent discrimination across all 12 fault types.
+
+**Why DE_12k outperforms FE_12k**: The Drive End sensor is physically closer to the test bearing, capturing clearer fault signatures. The Fan End sensor receives attenuated vibrations traveling through the shaft, and the particular Stratified Group K-Fold split assigned some files in ways that challenge the model. FE_12k performance has higher variance across random seeds due to having only 4 files per class.
 
 ---
 

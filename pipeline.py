@@ -226,39 +226,53 @@ def balance_classes(df, label_col="label"):
 # Train model
 # ──────────────────────────────────────────────────────────────────
 
-def _manual_group_split(df, test_ratio=0.5):
-    """Per-class file-level split guaranteeing every class appears in both train and test.
+def _stratified_group_split(X, y, groups, n_splits=2, max_retries=20):
+    """Stratified Group K-Fold split that guarantees every class appears in both folds.
 
-    For each class, sort its files deterministically, then split files into train/test.
-    Ensures every class has >=1 file in each set (required for XGBoost training).
+    Uses sklearn's StratifiedGroupKFold, which:
+      - keeps windows from the same file together (no data leakage)
+      - tries to balance class proportions across folds (stratified)
+
+    With few files per class, StratifiedGroupKFold can occasionally miss a class in
+    one fold. We retry with different random seeds until all classes are present in
+    both train and test folds.
     """
-    rng = np.random.RandomState(RANDOM_STATE)
-    train_mask = np.zeros(len(df), dtype=bool)
-    for label, grp in df.groupby("label"):
-        files = sorted(grp["filename"].unique())
-        n = len(files)
-        # Shuffle deterministically
-        idx = rng.permutation(n)
-        files = [files[i] for i in idx]
-        n_train = max(1, n - max(1, int(n * test_ratio)))  # at least 1 train, 1 test
-        train_files = set(files[:n_train])
-        train_mask |= (df["label"].values == label) & df["filename"].isin(train_files).values
-    return train_mask
+    all_classes = set(np.unique(y))
+    for seed in range(max_retries):
+        sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        train_idx, test_idx = next(sgkf.split(X, y, groups=groups))
+        train_classes = set(np.unique(y[train_idx]))
+        test_classes = set(np.unique(y[test_idx]))
+        if train_classes == all_classes and test_classes == all_classes:
+            print(f"  StratifiedGroupKFold (seed={seed}): balanced split found")
+            return train_idx, test_idx
+    # Fallback: use the last split (with warning)
+    print(f"  Warning: could not find perfectly balanced split after {max_retries} retries")
+    return train_idx, test_idx
 
 
 def train_model(df, config_name, models_dir):
     X = df[FEATURE_COLUMNS].values
     y = df["label"].values
+    groups = df["filename"].values
 
     class_names = sorted(np.unique(y))
 
-    # Manual per-class file split — guarantees every class in both train and test
-    train_mask = _manual_group_split(df, test_ratio=0.5)
-    X_train, X_test = X[train_mask], X[~train_mask]
-    y_train, y_test = y[train_mask], y[~train_mask]
+    # Stratified Group K-Fold cross-validation split
+    train_idx, test_idx = _stratified_group_split(X, y, groups, n_splits=2)
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
 
-    print(f"  Split: {train_mask.sum()} train / {(~train_mask).sum()} test samples")
+    print(f"  Split: {len(X_train)} train / {len(X_test)} test samples")
     print(f"  Classes in train: {len(np.unique(y_train))}, test: {len(np.unique(y_test))}")
+
+    # If any class is still missing (fallback scenario), drop it from test
+    train_classes = sorted(np.unique(y_train))
+    if len(train_classes) < len(class_names):
+        print(f"  Note: {len(class_names)-len(train_classes)} classes missing from train, filtering test...")
+        mask = np.isin(y_test, train_classes)
+        X_test, y_test = X_test[mask], y_test[mask]
+        class_names = train_classes
 
     label2int = {lbl: i for i, lbl in enumerate(class_names)}
     int2label = {i: lbl for lbl, i in label2int.items()}

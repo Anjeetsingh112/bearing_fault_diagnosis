@@ -1,66 +1,66 @@
 [
   {
     "feature": "Wavelet_cD3",
-    "mean_abs_shap": 0.671242
-  },
-  {
-    "feature": "Wavelet_cA3",
-    "mean_abs_shap": 0.619697
+    "mean_abs_shap": 0.674811
   },
   {
     "feature": "FreqCentroid",
-    "mean_abs_shap": 0.448464
+    "mean_abs_shap": 0.587612
   },
   {
     "feature": "Wavelet_cD2",
-    "mean_abs_shap": 0.443284
+    "mean_abs_shap": 0.47657
+  },
+  {
+    "feature": "Wavelet_cA3",
+    "mean_abs_shap": 0.420656
   },
   {
     "feature": "Shape",
-    "mean_abs_shap": 0.418997
-  },
-  {
-    "feature": "RMS",
-    "mean_abs_shap": 0.342186
-  },
-  {
-    "feature": "Kurtosis",
-    "mean_abs_shap": 0.325616
-  },
-  {
-    "feature": "BandEnergy",
-    "mean_abs_shap": 0.279628
-  },
-  {
-    "feature": "Wavelet_cD1",
-    "mean_abs_shap": 0.27077
-  },
-  {
-    "feature": "Peak2Peak",
-    "mean_abs_shap": 0.250431
+    "mean_abs_shap": 0.413938
   },
   {
     "feature": "PeakFreq",
-    "mean_abs_shap": 0.183212
+    "mean_abs_shap": 0.346143
+  },
+  {
+    "feature": "RMS",
+    "mean_abs_shap": 0.284533
+  },
+  {
+    "feature": "Wavelet_cD1",
+    "mean_abs_shap": 0.283826
+  },
+  {
+    "feature": "Kurtosis",
+    "mean_abs_shap": 0.253432
   },
   {
     "feature": "SpectralEntropy",
-    "mean_abs_shap": 0.174619
+    "mean_abs_shap": 0.231527
+  },
+  {
+    "feature": "BandEnergy",
+    "mean_abs_shap": 0.210559
   },
   {
     "feature": "Clearance",
-    "mean_abs_shap": 0.131558
+    "mean_abs_shap": 0.172993
+  },
+  {
+    "feature": "Peak2Peak",
+    "mean_abs_shap": 0.156992
   },
   {
     "feature": "Skewness",
-    "mean_abs_shap": 0.130003
+    "mean_abs_shap": 0.122929
   },
   {
     "feature": "Impulse",
-    "mean_abs_shap": 0.036114
+    "mean_abs_shap": 0.047505
   },
   {
     "feature": "Crest",
-    "mean_abs_shap": 0.024013
+    "mean_abs_shap": 0.030964
   }
 ]
